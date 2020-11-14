@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <title>ECB Oracle</title>
+  <link rel="stylesheet" type="text/css" href="/static/css/tomorrow-night.css" />
+  <link rel="stylesheet" type="text/css" href="/static/css/atom-one-light.css"/>
+  <link rel="stylesheet" type="text/css" href="/static/css/materialize.min.css" />
+  <link rel="stylesheet" type="text/css" href="/static/css/main.css" />
+  <link rel="stylesheet" type="text/css" href="/static/css/light.css" />
+  <link rel="stylesheet" type="text/css" href="/static/css/main-ac.css" />
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/highlight.min.js"></script>
+  <script src="/static/js/jquery.min.js" type="text/javascript"></script>
+  <script src="/static/js/materialize.min.js" type="text/javascript"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <script>
+    $(function() { 
+      $('#encrypt').submit(function() {
+        url = "/ecb_oracle/encrypt/"
+        params = ['plaintext'];
+        for (i = 0; i < params.length; i++) {
+          url += $("#encrypt ." + params[i]).val();
+          url += "/";
+        }
+        $.get(
+          url,
+          function(data) {
+            $("#results").text(JSON.stringify(data));
+          }
+        );
+        return false;
+      })
+    
+      function toHex(str) {
+        try {
+          hex = unescape(encodeURIComponent(str))
+            .split('').map(function(v){
+              return v.charCodeAt(0).toString(16)
+            }).join('')
+        } catch(e) {
+          hex = str
+          console.log('invalid text input: ' + str)
+        }
+        return hex
+      }
+
+      function fromHex(hex) {
+        try{
+          str = decodeURIComponent(hex.replace(/(..)/g,'%$1'))
+        }
+        catch(e) {
+          console.log('invalid hex input: ' + hex)
+          return "[unprintable]"
+        }
+        return str
+      }
+
+      $('#fromText').bind('input propertychange', function() {
+        var fromLen = $('#fromText').val().length;
+        $('#fromLen').text(fromLen);
+
+        var hex = toHex($('#fromText').val());
+        $('#toText').val(hex);
+        Materialize.updateTextFields($('#toText'));
+
+        var toLen = $('#toText').val().length;
+        $('#toLen').text(toLen);
+      });
+
+      $('#toText').bind('input propertychange', function() {
+        var toLen = $('#toText').val().length;
+        $('#toLen').text(toLen);
+
+        var hex = $('#toText').val();
+        if (hex.length % 2 == 0)  {
+          var text = fromHex(hex);
+          $('#fromText').val(text);
+          Materialize.updateTextFields($('#fromText'));
+        }
+
+        var fromLen = $('#fromText').val().length;
+        $('#fromLen').text(fromLen);
+      });
+
+
+      function xorhex(a, b) {
+        if (a.length > b.length) {
+          a = a.substring(0, b.length);
+        } else {
+          b = b.substring(0, a.length);
+        }
+        var res = "";
+        var i = a.length;
+        while (i-->0)
+          res = (parseInt(a.charAt(i), 16) ^ parseInt(b.charAt(i), 16)).toString(16) + res;
+        return res;
+      }
+
+
+      $('#xor1,#xor2').bind('input propertychange', function() {
+        if ( $('#xor1,#xor2').hasClass( "invalid" ) ) {
+          return
+        }
+        var a = $('#xor1').val();
+        var b = $('#xor2').val();
+        var res = xorhex(a, b);
+        $('#xorResult').text(res);
+      });
+
+    })
+  </script>
+</head>
+
+<header>
+  <a href="https://cryptohack.org">CRYPTOHACK</a>
+</header>
+<body>
+<main>
+  <h1>ECB Oracle</h1>
+
+  <div class="largeFlex">
+    <div class="sourceWrap">
+      <h5>Description</h5>
+
+      <p>ECB is the most simple mode, with each plaintext block encrypted entirely independently. In this case, your input is prepended to the secret flag and encrypted and that's it. We don't even provide a decrypt function. Perhaps you don't need a padding oracle when you have an "ECB oracle"?</p>
+
+      <h5>Help</h5>
+
+      <p>This page offers a convenient way for you to interact with the challenge functions. You can also use GET requests to send and receive data directly from the listed routes/endpoints if you wish. For more information see the <a href="https://cryptohack.org/faq#blockciphers">FAQ</a>.</p>
+      <p>Your aim is to recover the <code>FLAG</code> value. Once you have have it, submit it on the <a href="https://cryptohack.org/challenges/aes">CryptoHack Block Ciphers page</a>.</p>
+    </div>
+
+    <div class="challengeWrap">
+      <div class="diagramContainer">
+          <img class="svgDiagram" src="/static/img/ECB_encryption.svg" alt="">
+      </div>
+    </div>
+
+  </div>
+
+  <div class="largeFlex">
+    <div class="sourceWrap">
+      <h4>Source</h4>
+      <pre class="sourceBlock"><code class="python">from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+
+
+KEY = ?
+FLAG = ?
+
+
+@chal.route(&#39;/ecb_oracle/encrypt/&lt;plaintext&gt;/&#39;)
+def encrypt(plaintext):
+    plaintext = bytes.fromhex(plaintext)
+
+    padded = pad(plaintext + FLAG.encode(), 16)
+    cipher = AES.new(KEY, AES.MODE_ECB)
+    try:
+        encrypted = cipher.encrypt(padded)
+    except ValueError as e:
+        return {&#34;error&#34;: str(e)}
+
+    return {&#34;ciphertext&#34;: encrypted.hex()}
+
+
+</code></pre>
+    </div>
+
+    <div class="challengeWrap">
+      <h4>Interact</h4>
+      <div class="row card challenge-card">
+      
+        
+          <!-- <div class="row card challenge-card"> -->
+            <h5 class="functionName">encrypt(plaintext)</h5>
+            <form class="col s12" id="encrypt" action="#" spellcheck="false" autocomplete="off">
+            
+              <div class="row">
+                <div class="input-field col s12">
+                  <input type="text" class="hexinput plaintext">
+                  <label for="plaintext">plaintext</label>
+                  <span class="helper-text">Hex Input Only</span>
+                </div>
+              </div>
+            
+            <div class="col m12 s12 challenge-button"><button class="waves-effect waves-light btn" type="submit" value="Submit">Submit</button></div>
+            </form>
+          <!-- </div> -->
+        
+      
+    </div>
+      <div class="card results">
+        <h5 class="functionName">Output</h5>
+        <p id="results"></p>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="largeFlex">
+    <div class="challengeWrap">
+      <div class="convertForm card">
+        <h5 class="coral-text">XOR tool</h5>
+        <p>Use this form to XOR two hex strings together.</p>
+
+        <div class="row">
+          <form id="encoder" action="#" spellcheck="false" class="col s12 formFix">
+            <div class="col s12 m6 formFix">
+              <div class="input-field col s12">
+                <textarea id="xor1" class="materialize-textarea hexinput"></textarea>
+                <label for="xor1">Enter hex here</label>
+              </div>
+            </div>
+
+            <div class="col s12 m6 formFix">
+              <div class="input-field col s12">
+                <textarea id="xor2" class="materialize-textarea hexinput"></textarea>
+                <label for="xor2">Enter hex here</label>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="row">
+          <h6 class="coral-text">Output</h6>
+          <div class="col s12 m12" id="xorResult">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sourceWrap">
+      <div class="convertForm card">
+        <h5 class="coral-text">Hex Encoder/Decoder</h5>
+
+        <p>This is a convenient encoder designed for ASCII <-> Hex translations. It won't work for decoding hex to byte streams and will just show <code>[unprintable]</code> in that case.</p>
+
+        <div class="row">
+          <form id="encoder" action="#" spellcheck="false" class="col s12 formFix">
+            <div class="col s12 m6 formFix">
+              <div class="input-field col s12">
+                <textarea id="toText" class="materialize-textarea hexinput"></textarea>
+                <label for="toText">Enter hex here</label>
+              </div>
+            </div>
+
+            <div class="col s12 m6 formFix">
+              <div class="input-field col s12">
+                <textarea id="fromText" class="materialize-textarea"></textarea>
+                <label for="fromText">Enter text here</label>
+                <div class="chr-counter"><span id="fromLen" class="coral-text">0</span></div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+    </div>
+  </div>
+
+</main>
+
+
+
+
+
+<script type="text/javascript">
+$(document).ready(function() {
+  $('select').material_select();
+});
+</script>
+
+</body>
+
+<footer>
+<div class="footerLinks">
+  <div>
+    <h5>CryptoHack</h5>
+    <a id="changeTheme">Light Mode</a><br>
+    <a href="https://cryptohack.org/faq/">FAQ</a><br>
+    <a href="https://blog.cryptohack.org/">Blog</a><br>
+    <span class="footerIcon">
+      <a href="https://twitter.com/cryptohack__"><i class="fab fa-twitter"></i></a>
+      <a href="https://discord.gg/eJaJ3xC"><i class="fab fa-discord"></i></a>
+      <a href="https://www.patreon.com/cryptohack" aria-label="Patreon"><i class="fab fa-patreon"></i></a>
+    </span><br>
+  </div>
+
+  <div>
+    <h5>Categories</h5>
+    <a href="https://cryptohack.org/challenges/introduction/">Introduction</a><br>
+    <a href="https://cryptohack.org/challenges/general/">General</a><br>
+    <a href="https://cryptohack.org/challenges/maths/">Mathematics</a><br>
+    <a href="https://cryptohack.org/challenges/aes/">Block Ciphers</a><br>
+    <a href="https://cryptohack.org/challenges/rsa/">RSA</a><br>
+    <a href="https://cryptohack.org/challenges/diffie-hellman/">Diffie-Hellman</a><br>
+    <a href="https://cryptohack.org/challenges/ecc/">Elliptic Curves</a><br>
+    <a href="https://cryptohack.org/challenges/misc/">Miscellaneous</a><br>
+  </div>
+</div>
+
+
+<div class="credits">
+  <h5>Credits</h5>
+  Illustrations from <a href="https://icons8.com">Ouch.pics</a><br>
+  Drawn by <a href="https://dribbble.com/thierryfousse">Thierry Fousse</a>
+</div>
+
+<div class="copyright">
+  <span>
+    <!-- <a href="">Privacy Policy</a> &nbsp;
+    <a href="">Terms & Conditions</a> -->
+  </span>
+
+  <span>
+    © 2020 CryptoHack
+  </span>
+</div>
+</footer>
+
+<script>
+function togglePageContentLightDark() {
+    var html = document.getElementsByTagName('html')[0]
+    var currentClass = html.className
+    var newClass = html.className == 'dark-mode' ? 'light-mode' : 'dark-mode'
+    html.className = newClass
+
+    document.cookie = 'theme=' + (newClass == 'light-mode' ? 'light' : 'dark') + '; SameSite=Strict; path=/; domain=cryptohack.org; expires=Fri, 31 Dec 9999 23:59:59 GMT'
+    console.log('Cookies are now: ' + document.cookie)
+
+    var elem = document.querySelector('#changeTheme');
+    elem.innerHTML = isLightThemeSelected() ? 'Dark Mode' : 'Light Mode'
+}
+
+function isLightThemeSelected() {
+    return document.cookie.match(/theme=light/i) != null
+}
+
+function setThemeFromCookie() {
+    var html = document.getElementsByTagName('html')[0]
+    html.className = isLightThemeSelected() ? 'light-mode' : 'dark-mode'
+
+    var elem = document.querySelector('#changeTheme');
+    elem.innerHTML = isLightThemeSelected() ? 'Dark Mode' : 'Light Mode'
+
+    if(isLightThemeSelected()){
+      document.styleSheets[0].disabled = true
+    }
+    else{
+      document.styleSheets[1].disabled = true
+    }
+
+    console.log('Loaded cookie: ' + document.cookie)
+}
+
+(function() {
+  setThemeFromCookie()
+})();
+
+
+$("#changeTheme").on("click", function(e){
+  if(isLightThemeSelected()){
+    document.styleSheets[0].disabled = false
+    document.styleSheets[1].disabled = true
+  }
+  else{
+    document.styleSheets[0].disabled = true
+    document.styleSheets[1].disabled = false
+  }
+  togglePageContentLightDark()
+});
+</script>
+
+<script>
+$("textarea.hexinput").bind('input propertychange', function() {
+  var regExp = new RegExp(/^[A-Fa-f0-9]*$/i);
+  if (!regExp.test($(this).val())){
+      // String has invalid hex characters
+      $(this).addClass('invalid');
+      $(this).next().next().addClass('errorMessage');
+      $(this).next().next().text('Invalid Hex Data');
+  } else{
+    $(this).removeClass('invalid');
+  }
+})
+</script>
+
+<script>
+$("input.hexinput").focusout(function() {
+  var regExp = new RegExp(/^[A-Fa-f0-9]+$/i);
+  if(!$(this).val().trim()){
+      // String is empty
+      $(this).removeClass('invalid');
+      $(this).closest('form').find('button').prop('disabled',false);
+      $(this).next().next().removeClass('errorMessage');
+      $(this).next().next().text('Hex Input Only');
+  }
+  else if (!regExp.test($(this).val())){
+      // String has invalid hex characters
+      $(this).closest('form').find('button').prop('disabled',true);
+      $(this).addClass('invalid');
+      $(this).next().next().addClass('errorMessage');
+      $(this).next().next().text('Invalid Hex Data');
+  }
+  else if($(this).val().length % 2 == 1){
+      // Hex string has odd length
+      $(this).closest('form').find('button').prop('disabled',true);
+      $(this).addClass('invalid');
+      $(this).next().next().addClass('errorMessage');
+      $(this).next().next().text('Invalid Hex Data');
+  }
+  else{
+      // String is valid hex string
+      $(this).removeClass('invalid');
+      $(this).closest('form').find('button').prop('disabled',false);
+      $(this).next().next().removeClass('errorMessage');
+      $(this).next().next().text('Hex Input Only');
+  }
+});
+</script>
+
+
+</html>
